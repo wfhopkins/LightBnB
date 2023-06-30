@@ -27,10 +27,11 @@ router.post("/login", (req, res) => {
   const password = req.body.password;
 
   database.getUserWithEmail(email).then((user) => {
+    console.log('user', user);
     if (!user) {
       return res.send({ error: "no user with that id" });
     }
-
+    console.log('user.password', user.password);
     if (!bcrypt.compareSync(password, user.password)) {
       return res.send({ error: "error" });
     }
@@ -45,6 +46,8 @@ router.post("/login", (req, res) => {
     });
   });
 });
+
+
 
 // Log a user out
 router.post("/logout", (req, res) => {
