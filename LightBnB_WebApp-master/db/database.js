@@ -110,30 +110,34 @@ const getAllProperties = (options, limit = 10) => {
   const whereClauses = [];
   let queryString = '';
 
+  //FILTER BY OWNER ID
   if (options.owner_id) {
     queryParams.push(options.owner_id);
     whereClauses.push('owner_id = $${queryParams.length}');
   }
-
+  //FILTER BY CITY
   if (options.city) {
     queryParams.push(`%${options.city}%`);
     whereClauses.push(`city LIKE $${queryParams.length} `);
   }
+  //FILTER BY MIN PRICE/NIGHT
   if (options.minimum_price_per_night) {
     queryParams.push(options.minimum_price_per_night * 100);
     whereClauses.push(`cost_per_night >= $${queryParams.length} `);
   }
+  //FILTER BY MAX PRICE/NIGHT
   if (options.maximum_price_per_night) {
     queryParams.push(options.maximum_price_per_night * 100);
     whereClauses.push(`cost_per_night <= $${queryParams.length} `);
   }
   
-  
+  //BEGIN BUILDING QUERY STRING
   queryString = `SELECT properties.*, AVG(property_reviews.rating) as average_rating
   FROM properties
   JOIN property_reviews ON property_reviews.property_id = properties.id
   `;
 
+  //APPEND ALL FILTER WITH WHERE || AND
   if (whereClauses.length > 0) {
       queryString += `WHERE ${whereClauses.join(" AND ")}`;
   }
@@ -141,17 +145,20 @@ const getAllProperties = (options, limit = 10) => {
   queryString +=  `
   GROUP BY properties.id `
 
+  //FILTER FOR HAVING
   if (options.minimum_rating) {
     queryParams.push(options.minimum_rating);
     queryString += `HAVING AVG(property_reviews.rating) >= $${queryParams.length} `;
   }
 
+  //FINISH BUILDING QUERY STRING
   queryParams.push(limit);
   queryString += `
   ORDER BY properties.cost_per_night ASC
   LIMIT $${queryParams.length};
   `;
-console.log('queryString: ', queryString);
+
+  //RUN THE QUERY
   return pool.query(queryString, queryParams)
   .then((result) => {
     return result.rows;
@@ -168,11 +175,19 @@ console.log('queryString: ', queryString);
  * @return {Promise<{}>} A promise to the property.
  */
 const addProperty = function (property) {
-  const propertyId = Object.keys(properties).length + 1;
-  property.id = propertyId;
-  properties[propertyId] = property;
-  return Promise.resolve(property);
-};
+  return pool.query(`
+  INSERT INTO properties(owner_id, title, description,
+    thumbnail_photo_url, cover_photo_url, cost_per_night,
+    street, city, province, post_code, country, parking_spaces,
+    number_of_bathrooms, number_of_bedrooms)
+
+  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+  
+  RETURNING *;`,[property.owner_id, property.title, property.description,
+    property.thumbnail_photo_url, property.cover_photo_url, property.cost_per_night,
+    property.street, property.city, property.province, property.post_code, property.country,
+    property.parking_spaces, property.number_of_bathrooms, property.number_of_bedrooms]
+)};
 
 module.exports = {
   getUserWithEmail,
