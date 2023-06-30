@@ -13,7 +13,7 @@ const users = require("./json/users.json");
 
 /// Users
 
-/**
+/**GET USER WITH EMAIL
  * Get a single user from the database given their email.
  * @param {String} email The email of the user.
  * @return {Promise<{}>} A promise to the user.
@@ -31,7 +31,8 @@ const getUserWithEmail = function (email) {
   });
 };
 
-/**
+
+/**GET USER WITH ID
  * Get a single user from the database given their id.
  * @param {string} id The id of the user.
  * @return {Promise<{}>} A promise to the user.
@@ -49,8 +50,9 @@ const getUserWithId = function (id) {
   });
 };
 
-/**
- * Add a new user to the database.
+
+/**ADD A NEW USER
+ * to the database.
  * @param {{name: string, password: string, email: string}} user
  * @return {Promise<{}>} A promise to the user.
  */
@@ -67,10 +69,12 @@ const addUser = function (user) {
     console.log('err.message', err.message);
   });
 };
+
+
 /// Reservations
 
-/**
- * Get all reservations for a single user.
+/**GET ALL RESERVATIONS
+ * for a single user.
  * @param {string} guest_id The id of the user.
  * @return {Promise<[{}]>} A promise to the reservations.
  */
@@ -93,22 +97,55 @@ const getAllReservations = function (guest_id, limit = 10) {
   });
 };
 
-//SELECTG statement from previous iteration ^^^
-// id, properties.title, properties.cost_per_night, reservations.start_date, avg(rating) as average_rating
 
 /// Properties
 
-/**
- * Get all properties.
+/**GET ALL PROPERTIES
  * @param {{}} options An object containing query options.
  * @param {*} limit The number of results to return.
  * @return {Promise<[{}]>}  A promise to the properties.
  */
 const getAllProperties = function (options, limit = 10) {
-  return pool.query(`
-    SELECT * 
-    FROM properties
-    LIMIT $1;`, [limit])
+  const queryParams = [];
+
+  let queryString = `
+  SELECT properties.*, avg(property_reviews.rating) as average_rating
+  FROM properties
+  JOIN property_reviews ON properties.id = property_id
+  `;
+
+  //COMPASS: if an owner_id is passed in, only return properties belonging to that owner.
+  // if (owner_id) {
+  //   ???
+  // }
+
+  if (options.city) {
+    queryParams.push(`%${options.city}%`);
+    queryString += `WHERE city LIKE $${queryParams.length}`;
+  }
+  if (options.minimum_price_per_night) {
+    queryParams.push(options.minimum_price_per_night * 100);
+    queryString += `AND cost_per_night >= $${queryParams.length} `;
+  }
+  if (options.maximum_price_per_night) {
+    queryParams.push(options.maximum_price_per_night * 100);
+    queryString += `AND cost_per_night <= $${queryParams.length} `;
+  }
+  if (options.minimum_rating) {
+    queryParams.push(options.minimum_rating);
+    queryString += `HAVING avg(property_reviews.rating) >= $${queryParams.length} `;
+  }
+ 
+  queryParams.push(limit);
+  queryString += `
+  GROUP BY properties.id
+  ORDER BY cost_per_night
+  LIMIT $${queryParams.length};
+  `;
+
+  console.log(queryString, queryParams);
+
+  return pool.query(queryString, queryParams)
   .then((result) => {
     console.log(result.rows);
     return result.rows;
@@ -119,15 +156,8 @@ const getAllProperties = function (options, limit = 10) {
 };
 
 
-//   const limitedProperties = {};
-//   for (let i = 1; i <= limit; i++) {
-//     limitedProperties[i] = properties[i];
-//   }
-//   return Promise.resolve(limitedProperties);
-// };
-
-/**
- * Add a property to the database
+/**ADD A NEW PROPERTY
+ * to the database
  * @param {{}} property An object containing all of the property details.
  * @return {Promise<{}>} A promise to the property.
  */
